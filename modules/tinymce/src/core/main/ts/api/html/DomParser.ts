@@ -57,6 +57,7 @@ export interface DomParserSettings {
   allow_unsafe_link_target?: boolean;
   blob_cache?: BlobCache;
   convert_fonts_to_spans?: boolean;
+  convert_unsafe_embeds?: boolean;
   document?: Document;
   fix_list_elements?: boolean;
   font_size_legacy_values?: string;
@@ -69,6 +70,7 @@ export interface DomParserSettings {
    * @deprecated Remove trailing <br> tags functionality has been added to tinymce.dom.Serializer and option will be removed in the next major release */
   remove_trailing_brs?: boolean;
   root_name?: string;
+  sandbox_iframes?: boolean;
   sanitize?: boolean;
   validate?: boolean;
 }
@@ -185,7 +187,8 @@ const whitespaceCleaner = (root: AstNode, schema: Schema, settings: DomParserSet
     return false;
   };
 
-  const isBlock = (node: AstNode) => node.name in blockElements || TransparentElements.isTransparentAstBlock(schema, node);
+  const isBlock = (node: AstNode) =>
+    node.name in blockElements || TransparentElements.isTransparentAstBlock(schema, node) || (Namespace.isNonHtmlElementRootName(node.name) && node.parent === root);
 
   const isAtEdgeOfBlock = (node: AstNode, start: boolean): boolean => {
     const neighbour = start ? node.prev : node.next;
