@@ -26,7 +26,7 @@ export interface NumberInputSpec {
 }
 
 const menuTitle = 'Font sizes';
-const btnTooltip = 'Font size {0}';
+const getTooltipPlaceholder = Fun.constant('Font size {0}');
 const fallbackFontSize = '12pt';
 
 // See https://websemantics.uk/articles/font-size-conversion/ for conversions
@@ -114,7 +114,7 @@ const getSpec = (editor: Editor): SelectSpec => {
   const dataset = buildBasicSettingsDataset(editor, 'font_size_formats', Delimiter.Space);
 
   return {
-    tooltip: Tooltip.makeTooltipText(editor, btnTooltip, fallbackFontSize),
+    tooltip: Tooltip.makeTooltipText(editor, getTooltipPlaceholder(), fallbackFontSize),
     text: Optional.some(fallbackFontSize),
     icon: Optional.none(),
     isSelectedFor,
@@ -129,7 +129,7 @@ const getSpec = (editor: Editor): SelectSpec => {
 };
 
 const createFontSizeButton = (editor: Editor, backstage: UiFactoryBackstage): SketchSpec =>
-  createSelectButton(editor, backstage, getSpec(editor), btnTooltip, 'FontSizeTextUpdate');
+  createSelectButton(editor, backstage, getSpec(editor), getTooltipPlaceholder, 'FontSizeTextUpdate', 'fontsize');
 
 const getConfigFromUnit = (unit: string): Config => {
   const baseConfig = { step: 1 };
@@ -180,7 +180,7 @@ const getNumberInputSpec = (editor: Editor): NumberInputSpec => {
 };
 
 const createFontSizeInputButton = (editor: Editor, backstage: UiFactoryBackstage): AlloySpec =>
-  createBespokeNumberInput(editor, backstage, getNumberInputSpec(editor));
+  createBespokeNumberInput(editor, backstage, getNumberInputSpec(editor), 'fontsizeinput');
 
 // TODO: Test this!
 const createFontSizeMenu = (editor: Editor, backstage: UiFactoryBackstage): void => {

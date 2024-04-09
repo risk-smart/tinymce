@@ -32,10 +32,10 @@ describe('browser.tinymce.themes.silver.editor.bespoke.BespokeSelectAriaLabelTes
     pWaitForMenu: (editor: Editor, itemSelector: string) => Promise<SugarElement<Element>>
   ) => async () => {
     const editor = hook.editor();
-    const buttonSelector = `button[title="${makeLabel(initialItem)}"]`;
+    const buttonSelector = `button[aria-label="${makeLabel(initialItem)}"]`;
 
     await pOpenMenu(buttonSelector);
-    const itemSelector = `div[role="menuitemcheckbox"][title="${finalItem}"]`;
+    const itemSelector = `div[role="menuitemcheckbox"][aria-label="${finalItem}"]`;
     await pWaitForMenu(editor, itemSelector);
 
     const button = UiFinder.findIn(SugarBody.body(), `.tox-toolbar__group ${buttonSelector}`).getOrDie();
@@ -72,7 +72,7 @@ describe('browser.tinymce.themes.silver.editor.bespoke.BespokeSelectAriaLabelTes
       (item) => `${scenario.label} ${item}`,
       Fun.curry(MenuUtils.pOpenMenuWithSelector, scenario.label),
       (editor) => {
-        const submenuSelector = 'div[title="Blocks"]';
+        const submenuSelector = 'div[aria-label="Blocks"]';
         return TinyUiActions.pWaitForUi(editor, submenuSelector).then(() => TinyUiActions.clickOnUi(editor, submenuSelector));
       }
     );
@@ -146,6 +146,47 @@ describe('browser.tinymce.themes.silver.editor.bespoke.BespokeSelectAriaLabelTes
       initialItem: 'Paragraph',
       finalItem: 'Div'
     }));
+  });
+
+  context('No translation - with custom style formats', () => {
+    const hook = TinyHooks.bddSetup<Editor>({
+      ...settings,
+      style_formats: [
+        {
+          title: 'Button',
+          selector: 'a',
+          classes: 'button'
+        },
+        {
+          title: 'Heading 1',
+          format: 'h1'
+        },
+        {
+          title: 'Italic',
+          format: 'italic'
+        }
+      ]
+    });
+
+    afterEach(makeCleanupFn(hook));
+
+    it('TINY-10147: Styles dropdown should default to Formats when Paragraph is not configured', () => {
+      const buttonSelector = `button[aria-label="Formats"]`;
+      const button = UiFinder.findIn(SugarBody.body(), `.tox-toolbar__group ${buttonSelector}`).getOrDie();
+      assert.equal(Attribute.get(button, 'aria-label'), 'Formats');
+    });
+
+    it('TINY-10147: Styles dropdown should change from default if display text changes', async () => {
+      const editor = hook.editor();
+      const buttonSelector = `button[aria-label="Formats"]`;
+
+      await MenuUtils.pOpenMenuWithSelector('Formats', buttonSelector);
+      const itemSelector = `div[role="menuitemcheckbox"][aria-label="Heading 1"]`;
+      const button = UiFinder.findIn(SugarBody.body(), `.tox-toolbar__group ${buttonSelector}`).getOrDie();
+      assert.equal(Attribute.get(button, 'aria-label'), 'Formats');
+      TinyUiActions.clickOnUi(editor, itemSelector);
+      assert.equal(Attribute.get(button, 'aria-label'), 'Format Heading 1');
+    });
   });
 
   context('With translations', () => {
@@ -238,5 +279,55 @@ describe('browser.tinymce.themes.silver.editor.bespoke.BespokeSelectAriaLabelTes
       initialItem: 'Paragraph translated',
       finalItem: 'Div translated'
     }));
+  });
+
+  context('Translation - with custom style formats', () => {
+    const hook = TinyHooks.bddSetup<Editor>({
+      ...settings,
+      language: 'test',
+      setup: () => {
+        I18n.add('test', {
+          'Formats': 'Formatss',
+          'Format {0}': 'Fformat {0}',
+          'Heading 1': 'Heading 1 translated',
+        });
+
+      },
+      style_formats: [
+        {
+          title: 'Button',
+          selector: 'a',
+          classes: 'button'
+        },
+        {
+          title: 'Heading 1',
+          format: 'h1'
+        },
+        {
+          title: 'Italic',
+          format: 'italic'
+        }
+      ]
+    });
+
+    afterEach(makeCleanupFn(hook));
+
+    it('TINY-10603: Styles dropdown should default to Formats when Paragraph is not configured', () => {
+      const buttonSelector = `button[aria-label="Formatss"]`;
+      const button = UiFinder.findIn(SugarBody.body(), `.tox-toolbar__group ${buttonSelector}`).getOrDie();
+      assert.equal(Attribute.get(button, 'aria-label'), 'Formatss');
+    });
+
+    it('TINY-10603: Styles dropdown should change from default if display text changes', async () => {
+      const editor = hook.editor();
+      const buttonSelector = `button[aria-label="Formatss"]`;
+
+      await MenuUtils.pOpenMenuWithSelector('Formats menu', buttonSelector);
+      const itemSelector = `div[role="menuitemcheckbox"][aria-label="Heading 1 translated"]`;
+      const button = UiFinder.findIn(SugarBody.body(), `.tox-toolbar__group ${buttonSelector}`).getOrDie();
+      assert.equal(Attribute.get(button, 'aria-label'), 'Formatss');
+      TinyUiActions.clickOnUi(editor, itemSelector);
+      assert.equal(Attribute.get(button, 'aria-label'), 'Fformat Heading 1 translated');
+    });
   });
 });

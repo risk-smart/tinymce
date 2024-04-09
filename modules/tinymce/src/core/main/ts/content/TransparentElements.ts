@@ -16,7 +16,8 @@ export const elementNames = (map: SchemaMap): string[] => Arr.filter(Obj.keys(ma
 const makeSelectorFromSchemaMap = (map: SchemaMap) =>
   Arr.map(elementNames(map), (name) => {
     // Exclude namespace elements from processing
-    return `${name}:` + Arr.map(Namespace.namespaceElements, (ns) => `not(${ns} ${name})`).join(':');
+    const escapedName = CSS.escape(name);
+    return `${escapedName}:` + Arr.map(Namespace.namespaceElements, (ns) => `not(${ns} ${escapedName})`).join(':');
   }).join(',');
 
 const updateTransparent = (blocksSelector: string, transparent: Element) => {
@@ -41,18 +42,18 @@ const updateBlockStateOnChildren = (schema: Schema, scope: Element): Element[] =
   return Arr.filter(scope.querySelectorAll(transparentSelector), (transparent) => updateTransparent(blocksSelector, transparent));
 };
 
-const trimEdge = (el: DocumentFragment, leftSide: boolean) => {
+const trimEdge = (schema: Schema, el: DocumentFragment, leftSide: boolean) => {
   const childPropertyName = leftSide ? 'lastChild' : 'firstChild';
 
   for (let child = el[childPropertyName]; child; child = child[childPropertyName]) {
-    if (Empty.isEmpty(SugarElement.fromDom(child))) {
+    if (Empty.isEmptyNode(schema, child, { checkRootAsContent: true })) {
       child.parentNode?.removeChild(child);
       return;
     }
   }
 };
 
-const split = (parentElm: Element, splitElm: Node) => {
+const split = (schema: Schema, parentElm: Element, splitElm: Node) => {
   const range = document.createRange();
   const parentNode = parentElm.parentNode;
 
@@ -60,22 +61,22 @@ const split = (parentElm: Element, splitElm: Node) => {
     range.setStartBefore(parentElm);
     range.setEndBefore(splitElm);
     const beforeFragment = range.extractContents();
-    trimEdge(beforeFragment, true);
+    trimEdge(schema, beforeFragment, true);
 
     range.setStartAfter(splitElm);
     range.setEndAfter(parentElm);
     const afterFragment = range.extractContents();
-    trimEdge(afterFragment, false);
+    trimEdge(schema, afterFragment, false);
 
-    if (!Empty.isEmpty(SugarElement.fromDom(beforeFragment))) {
+    if (!Empty.isEmptyNode(schema, beforeFragment, { checkRootAsContent: true })) {
       parentNode.insertBefore(beforeFragment, parentElm);
     }
 
-    if (!Empty.isEmpty(SugarElement.fromDom(splitElm))) {
+    if (!Empty.isEmptyNode(schema, splitElm, { checkRootAsContent: true })) {
       parentNode.insertBefore(splitElm, parentElm);
     }
 
-    if (!Empty.isEmpty(SugarElement.fromDom(afterFragment))) {
+    if (!Empty.isEmptyNode(schema, afterFragment, { checkRootAsContent: true })) {
       parentNode.insertBefore(afterFragment, parentElm);
     }
 
@@ -104,7 +105,7 @@ const splitInvalidChildren = (schema: Schema, scope: Element, transparentBlocks:
 
         Arr.each(invalidChildren, (child) => {
           PredicateFind.ancestor(child, isBlock, isRoot).each((parentBlock) => {
-            split(parentBlock.dom as Element, child.dom);
+            split(schema, parentBlock.dom as Element, child.dom);
           });
         });
 

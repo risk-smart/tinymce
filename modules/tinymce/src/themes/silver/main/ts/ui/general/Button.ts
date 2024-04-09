@@ -8,7 +8,7 @@ import {
   RawDomSchema, Replacing, SimpleOrSketchSpec, SketchSpec, Tabstopping, Tooltipping
 } from '@ephox/alloy';
 import { Dialog, Toolbar } from '@ephox/bridge';
-import { Fun, Merger, Optional } from '@ephox/katamari';
+import { Fun, Merger, Optional, Type } from '@ephox/katamari';
 
 import { UiFactoryBackstage, UiFactoryBackstageProviders } from '../../backstage/Backstage';
 import * as ReadOnly from '../../ReadOnly';
@@ -79,16 +79,16 @@ export const renderIconButtonSpec = (
   spec: IconButtonWrapper,
   action: Optional<(comp: AlloyComponent) => void>,
   providersBackstage: UiFactoryBackstageProviders,
-  extraBehaviours: Behaviours = []
+  extraBehaviours: Behaviours = [],
+  btnName: string
 ): AlloyButtonSpec => {
   const tooltipAttributes = spec.tooltip.map<{}>((tooltip) => ({
     'aria-label': providersBackstage.translate(tooltip),
-    'title': providersBackstage.translate(tooltip)
   })).getOr({});
   const dom = {
     tag: 'button',
     classes: [ ToolbarButtonClasses.Button ],
-    attributes: tooltipAttributes
+    attributes: { ...tooltipAttributes, 'data-mce-name': btnName }
   };
   const icon = spec.icon.map((iconName) => renderIconFromPack(iconName, providersBackstage.icons));
   const components = componentRenderPipeline([
@@ -141,8 +141,8 @@ const renderButtonSpec = (
     tag: 'button',
     classes,
     attributes: {
-      // TINY-10453: Look into this, we might want to remove this title attribute since it has already contain a label
-      title: translatedText
+      'aria-label': translatedText,
+      'data-mce-name': spec.text
     }
   };
 
@@ -195,7 +195,7 @@ const isNormalFooterButtonSpec = (spec: FooterButtonSpec, buttonType: string): s
 
 const isToggleButtonSpec = (spec: FooterButtonSpec, buttonType: string): spec is Dialog.DialogFooterToggleButton => buttonType === 'togglebutton';
 
-const renderToggleButton = (spec: FooterToggleButtonSpec, providers: UiFactoryBackstageProviders): SimpleOrSketchSpec => {
+const renderToggleButton = (spec: FooterToggleButtonSpec, providers: UiFactoryBackstageProviders, btnName?: string): SimpleOrSketchSpec => {
   const optMemIcon = spec.icon
     .map((memIcon) => renderReplaceableIconFromPack(memIcon, providers.icons))
     .map(Memento.record);
@@ -222,14 +222,13 @@ const renderToggleButton = (spec: FooterToggleButtonSpec, providers: UiFactoryBa
     ...spec,
     name: spec.name ?? '',
     primary: buttonType === 'primary',
-    tooltip: Optional.from(spec.tooltip),
+    tooltip: spec.tooltip,
     enabled: spec.enabled ?? false,
     borderless: false
   };
 
-  const tooltipAttributes = buttonSpec.tooltip.map<{}>((tooltip) => ({
+  const tooltipAttributes = buttonSpec.tooltip.or(spec.text).map((tooltip) => ({
     'aria-label': providers.translate(tooltip),
-    'title': providers.translate(tooltip)
   })).getOr({});
 
   const buttonTypeClasses = calculateClassesFromButtonType(buttonType ?? 'secondary');
@@ -241,7 +240,10 @@ const renderToggleButton = (spec: FooterToggleButtonSpec, providers: UiFactoryBa
       ...(spec.active ? [ ViewButtonClasses.Ticked ] : []),
       ...(showIconAndText ? [ 'tox-button--icon-and-text' ] : [])
     ],
-    attributes: tooltipAttributes
+    attributes: {
+      ...tooltipAttributes,
+      ...(Type.isNonNullable(btnName) ? { 'data-mce-name': btnName } : {} )
+    }
   };
   const extraBehaviours: Behaviours = [];
 
@@ -254,7 +256,7 @@ const renderToggleButton = (spec: FooterToggleButtonSpec, providers: UiFactoryBa
     ...(spec.text.isSome() ? [ translatedTextComponed ] : [])
   ];
 
-  const iconButtonSpec = renderCommonSpec(buttonSpec, Optional.some(action), extraBehaviours, dom, components, Optional.from(spec.tooltip), providers);
+  const iconButtonSpec = renderCommonSpec(buttonSpec, Optional.some(action), extraBehaviours, dom, components, spec.tooltip, providers);
   return AlloyButton.sketch(iconButtonSpec);
 };
 
@@ -276,7 +278,7 @@ export const renderFooterButton = (spec: FooterButtonSpec, buttonType: string, b
       fetch: getFetch(menuButtonSpec.items, getButton, backstage)
     };
 
-    const memButton = Memento.record(renderMenuButton(fixedSpec, ToolbarButtonClasses.Button, backstage, Optional.none()));
+    const memButton = Memento.record(renderMenuButton(fixedSpec, ToolbarButtonClasses.Button, backstage, Optional.none(), true, spec.text.or(spec.tooltip).getOrUndefined()));
 
     return memButton.asSpec();
   } else if (isNormalFooterButtonSpec(spec, buttonType)) {
@@ -287,7 +289,7 @@ export const renderFooterButton = (spec: FooterButtonSpec, buttonType: string, b
     };
     return renderButton(buttonSpec, action, backstage.shared.providers, [ ]);
   } else if (isToggleButtonSpec(spec, buttonType)) {
-    return renderToggleButton(spec, backstage.shared.providers);
+    return renderToggleButton(spec, backstage.shared.providers, spec.text.or(spec.tooltip).getOrUndefined());
   } else {
     // eslint-disable-next-line no-console
     console.error('Unknown footer button type: ', buttonType);

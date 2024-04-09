@@ -7,33 +7,11 @@ import { renderReplaceableIconFromPack } from '../button/ButtonSlices';
 import { calculateClassesFromButtonType, IconButtonWrapper, renderCommonSpec } from '../general/Button';
 import { componentRenderPipeline } from '../menus/item/build/CommonMenuItem';
 import { ViewButtonClasses } from '../toolbar/button/ButtonClasses';
-import { ViewButtonWithoutGroup, ViewLabel } from './View';
+import { ViewButtonWithoutGroup } from './View';
 
 type Behaviours = Behaviour.NamedConfiguredBehaviour<any, any, any>[];
 
-const labelSizeClass = {
-  normal: 'tox-view__label--normal',
-  large: 'tox-view__label--large',
-};
-
-const renderLabel = (spec: ViewLabel, providers: UiFactoryBackstageProviders): SimpleOrSketchSpec => {
-  const sizeClass = labelSizeClass[spec.size];
-  return {
-    dom: {
-      tag: 'div',
-      classes: [ 'tox-view__label', sizeClass ]
-    },
-    components: [
-      GuiFactory.text(providers.translate(spec.text))
-    ]
-  };
-};
-
 export const renderButton = (spec: ViewButtonWithoutGroup, providers: UiFactoryBackstageProviders): SimpleOrSketchSpec => {
-  if (spec.type === 'label') {
-    return renderLabel(spec, providers);
-  }
-
   const isToggleButton = spec.type === 'togglebutton';
 
   const optMemIcon = spec.icon
@@ -85,9 +63,8 @@ export const renderButton = (spec: ViewButtonWithoutGroup, providers: UiFactoryB
   const optTranslatedText = isToggleButton ? spec.text.map(providers.translate) : Optional.some(providers.translate(spec.text));
   const optTranslatedTextComponed = optTranslatedText.map(GuiFactory.text);
 
-  const tooltipAttributes = buttonSpec.tooltip.or(optTranslatedText).map<{}>((tooltip) => ({
-    'aria-label': providers.translate(tooltip),
-    'title': providers.translate(tooltip)
+  const ariaLabelAttributes = buttonSpec.tooltip.or(optTranslatedText).map<{}>((al) => ({
+    'aria-label': providers.translate(al),
   })).getOr({});
 
   const optIconSpec = optMemIcon.map((memIcon) => memIcon.asSpec());
@@ -102,7 +79,7 @@ export const renderButton = (spec: ViewButtonWithoutGroup, providers: UiFactoryB
       .concat(...hasIconAndText ? [ 'tox-button--icon-and-text' ] : [])
       .concat(...spec.borderless ? [ 'tox-button--naked' ] : [])
       .concat(...spec.type === 'togglebutton' && spec.active ? [ ViewButtonClasses.Ticked ] : []),
-    attributes: tooltipAttributes
+    attributes: ariaLabelAttributes
   };
   const extraBehaviours: Behaviours = [];
 

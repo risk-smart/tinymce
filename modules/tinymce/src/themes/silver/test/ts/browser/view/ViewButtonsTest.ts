@@ -1,7 +1,7 @@
-import { ApproxStructure, Assertions, UiFinder } from '@ephox/agar';
+import { UiFinder } from '@ephox/agar';
 import { context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Fun } from '@ephox/katamari';
-import { Class, SugarBody } from '@ephox/sugar';
+import { Class } from '@ephox/sugar';
 import { TinyDom, TinyHooks, TinyUiActions } from '@ephox/wrap-mcagar';
 import { assert } from 'chai';
 
@@ -89,13 +89,13 @@ describe('browser.tinymce.themes.silver.view.ViewButtonsTest', () => {
       editor.execCommand('ToggleView', false, name);
     };
 
-    const clickViewButton = (editor: Editor, tooltip: string) => TinyUiActions.clickOnUi(editor, `.tox-view button[title='${tooltip}']`);
+    const clickViewButton = (editor: Editor, tooltip: string) => TinyUiActions.clickOnUi(editor, `.tox-view button[aria-label='${tooltip}']`);
 
-    const getSvg = (editor: Editor, name: string) => UiFinder.findIn<HTMLElement>(TinyDom.container(editor), `.tox-view button[title='${name}'] svg`).getOrDie().dom.innerHTML;
+    const getSvg = (editor: Editor, name: string) => UiFinder.findIn<HTMLElement>(TinyDom.container(editor), `.tox-view button[aria-label='${name}'] svg`).getOrDie().dom.innerHTML;
 
     const getButtonByTitle = (title: string) => {
       const editor = hook.editor();
-      return UiFinder.findIn<HTMLElement>(TinyDom.container(editor), `.tox-view button[title='${title}']`).getOrDie();
+      return UiFinder.findIn<HTMLElement>(TinyDom.container(editor), `.tox-view button[aria-label='${title}']`).getOrDie();
     };
 
     it('TINY-9523: tooglable button can be toggled with the correct implementation', () => {
@@ -121,7 +121,7 @@ describe('browser.tinymce.themes.silver.view.ViewButtonsTest', () => {
     it('TINY-9616: if is active is true the button should have ViewButtonClasses.Ticked', async () => {
       const editor = hook.editor();
       toggleView('myview2');
-      await UiFinder.pWaitFor('buttons should be showed', TinyDom.container(editor), '[title="button-active-true"]');
+      await UiFinder.pWaitFor('buttons should be showed', TinyDom.container(editor), '[aria-label="button-active-true"]');
 
       const buttonActiveTrue = getButtonByTitle('button-active-true');
       assert.isTrue(Class.has(buttonActiveTrue, ViewButtonClasses.Ticked), 'button with active true should have ticked class');
@@ -129,48 +129,6 @@ describe('browser.tinymce.themes.silver.view.ViewButtonsTest', () => {
       assert.isFalse(Class.has(buttonActiveFalse, ViewButtonClasses.Ticked), 'button with active false should not have ticked class');
       const buttonNoActive = getButtonByTitle('button-no-active');
       assert.isFalse(Class.has(buttonNoActive, ViewButtonClasses.Ticked), 'button without active flag should not have ticked class');
-    });
-  });
-
-  context('Verifying Label Component Classes', () => {
-    const viewName = 'labelview';
-    const hook = TinyHooks.bddSetup({
-      base_url: '/project/tinymce/js/tinymce',
-      setup: (editor: Editor) => {
-        editor.ui.registry.addView(viewName, {
-          buttons: [
-            {
-              type: 'label',
-              text: 'Title',
-              size: 'large'
-            },
-            {
-              type: 'label',
-              text: 'Label',
-              size: 'normal'
-            }
-          ],
-          onShow: Fun.noop,
-          onHide: Fun.noop
-        });
-      }
-    }, [], true);
-
-    const assertLabelStructure = (label: string, size: 'normal' | 'large') => ApproxStructure.build((s, str, _arr) => s.element('div', {
-      exactClasses: [ 'tox-view__label', `tox-view__label--${size}` ],
-      children: [
-        s.text(str.is(label))
-      ]
-    }));
-
-    it('TINY-10339: Verify class and contents of view labels in header', () => {
-      const editor = hook.editor();
-      editor.execCommand('ToggleView', false, viewName);
-      const header = UiFinder.findIn(SugarBody.body(), '.tox-view .tox-view__header').getOrDie();
-      const normalLabel = UiFinder.findIn(header, '.tox-view__label.tox-view__label--normal').getOrDie();
-      Assertions.assertStructure('Verify structure of normal size view label', assertLabelStructure('Label', 'normal'), normalLabel);
-      const largeLabel = UiFinder.findIn(header, '.tox-view__label.tox-view__label--large').getOrDie();
-      Assertions.assertStructure('Verify structure of large size view label', assertLabelStructure('Title', 'large'), largeLabel);
     });
   });
 });

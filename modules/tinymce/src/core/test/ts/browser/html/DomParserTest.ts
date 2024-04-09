@@ -1,6 +1,5 @@
 import { context, describe, it } from '@ephox/bedrock-client';
 import { Arr, Fun, Obj } from '@ephox/katamari';
-import { PlatformDetection } from '@ephox/sand';
 import { assert } from 'chai';
 
 import Env from 'tinymce/core/api/Env';
@@ -17,7 +16,6 @@ interface ParseTestResult {
 }
 
 describe('browser.tinymce.core.html.DomParserTest', () => {
-  const browser = PlatformDetection.detect().browser;
   const schema = Schema({ valid_elements: '*[class|title]' });
   const serializer = HtmlSerializer({}, schema);
 
@@ -530,63 +528,6 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
         );
       });
 
-      it('Remove redundant br elements', () => {
-        const schema = Schema();
-
-        const parser = DomParser({ remove_trailing_brs: true, ...scenario.settings }, schema);
-        const root = parser.parse(
-          '<p>a<br></p>' +
-          '<p>a<br>b<br></p>' +
-          '<p>a<br><br></p><p>a<br><span data-mce-type="bookmark"></span><br></p>' +
-          '<p>a<span data-mce-type="bookmark"></span><br></p>'
-        );
-        assert.equal(
-          serializer.serialize(root),
-          '<p>a</p><p>a<br>b</p><p>a<br><br></p><p>a<br><br></p><p>a</p>',
-          'Remove traling br elements.'
-        );
-      });
-
-      it('Replace br with nbsp when wrapped in two inline elements and one block', () => {
-        const schema = Schema();
-
-        const parser = DomParser({ remove_trailing_brs: true, ...scenario.settings }, schema);
-        const root = parser.parse('<p><strong><em><br /></em></strong></p>');
-        assert.equal(serializer.serialize(root), '<p><strong><em>\u00a0</em></strong></p>');
-      });
-
-      it('Replace br with nbsp when wrapped in an inline element and placed in the root', () => {
-        const schema = Schema();
-
-        const parser = DomParser({ remove_trailing_brs: true, ...scenario.settings }, schema);
-        const root = parser.parse('<strong><br /></strong>');
-        assert.equal(serializer.serialize(root), '<strong>\u00a0</strong>');
-      });
-
-      it(`Don't replace br inside root element when there is multiple brs`, () => {
-        const schema = Schema();
-
-        const parser = DomParser({ remove_trailing_brs: true, ...scenario.settings }, schema);
-        const root = parser.parse('<strong><br /><br /></strong>');
-        assert.equal(serializer.serialize(root), '<strong><br><br></strong>');
-      });
-
-      it(`Don't replace br inside root element when there is siblings`, () => {
-        const schema = Schema();
-
-        const parser = DomParser({ remove_trailing_brs: true, ...scenario.settings }, schema);
-        const root = parser.parse('<strong><br /></strong><em>x</em>');
-        assert.equal(serializer.serialize(root), '<strong><br></strong><em>x</em>');
-      });
-
-      it('Remove br in invalid parent bug', () => {
-        const schema = Schema({ valid_elements: 'br' });
-
-        const parser = DomParser({ remove_trailing_brs: true, ...scenario.settings }, schema);
-        const root = parser.parse('<br>');
-        assert.equal(serializer.serialize(root), '', 'Remove traling br elements.');
-      });
-
       it('Forced root blocks', () => {
         const schema = Schema();
 
@@ -829,7 +770,7 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
 
         assert.equal(
           serializer.serialize(DomParser(scenario.settings).parse('<iframe><textarea></iframe><img src="a" onerror="alert(document.domain)" />')),
-          browser.isSafari() || !scenario.isSanitizeEnabled ? '<iframe><textarea></iframe><img src="a">' : '<img src="a">'
+          scenario.isSanitizeEnabled ? '<img src="a">' : '<iframe><textarea></iframe><img src="a">'
         );
       });
 
@@ -1533,16 +1474,43 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
       });
 
       context('Sandboxing iframes', () => {
-        const serializeIframeHtml = (sandbox: boolean): string => {
-          const parser = DomParser({ ...scenario.settings, sandbox_iframes: sandbox });
-          return serializer.serialize(parser.parse('<iframe src="about:blank"></iframe>'));
-        };
+        context('sandbox_iframes', () => {
+          const testSandboxIframe = (sandbox: boolean, expected: string) => () => {
+            const parser = DomParser({ ...scenario.settings, sandbox_iframes: sandbox });
+            const serialized = serializer.serialize(parser.parse('<iframe src="about:blank"></iframe>'));
+            assert.equal(serialized, expected);
+          };
 
-        it('TINY-10348: iframes should be sandboxed when sandbox_iframes: false', () =>
-          assert.equal(serializeIframeHtml(false), '<iframe src="about:blank"></iframe>'));
+          it('TINY-10348: iframes should be sandboxed when sandbox_iframes: false',
+            testSandboxIframe(false, '<iframe src="about:blank"></iframe>'));
 
-        it('TINY-10348: iframes should be sandboxed when sandbox_iframes: true', () =>
-          assert.equal(serializeIframeHtml(true), '<iframe src="about:blank" sandbox=""></iframe>'));
+          it('TINY-10348: iframes should be sandboxed when sandbox_iframes: true',
+            testSandboxIframe(true, '<iframe src="about:blank" sandbox=""></iframe>'));
+        });
+
+        context('sandbox_iframes_exclusions', () => {
+          const exclusions = [ 'tiny.cloud' ];
+          const parser = DomParser({ ...scenario.settings, sandbox_iframes: true, sandbox_iframes_exclusions: exclusions });
+
+          const testSandboxIframeExclusions = (src: string, expected: string) => () => {
+            const serialized = serializer.serialize(parser.parse(`<iframe src="${src}"></iframe>`));
+            assert.equal(serialized, expected);
+          };
+
+          it('TINY-10350: iframes should be sandboxed when sandbox_iframes: true and host is not excluded',
+            testSandboxIframeExclusions('https://www.example.com', '<iframe src="https://www.example.com" sandbox=""></iframe>'));
+
+          it('TINY-10350: iframes should not be sandboxed when sandbox_iframes: true and host is excluded',
+            testSandboxIframeExclusions('https://www.tiny.cloud', '<iframe src="https://www.tiny.cloud"></iframe>'));
+
+          it('TINY-10350: iframes with non-URL src should be sandboxed when sandbox_iframes: true',
+            testSandboxIframeExclusions('abc', '<iframe src="abc" sandbox=""></iframe>'));
+
+          it('TINY-10350: iframes with no src should be sandboxed when sandbox_iframes: true', () => {
+            const serialized = serializer.serialize(parser.parse('<iframe></iframe>'));
+            assert.equal(serialized, '<iframe sandbox=""></iframe>');
+          });
+        });
       });
 
       context('Convert unsafe embeds', () => {
@@ -1729,4 +1697,47 @@ describe('browser.tinymce.core.html.DomParserTest', () => {
       assert.equal(serializedHtml, '<div><svg> <circle> </circle> </svg> <svg> <circle> </circle> </svg></div>');
     });
   });
+
+  context('Math elements', () => {
+    it('TINY-10809: Should not wrap math elements', () => {
+      const schema = Schema();
+      schema.addValidElements('math[*]');
+      const input = '<math></math>foo';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<math></math><p>foo</p>');
+    });
+
+    it('TINY-10809: Should retain math elements as is but filter out scripts', () => {
+      const schema = Schema();
+      schema.addValidElements('math[*]');
+      const input = '<math><script>alert(1)</script><mrow><msup><mi>a</mi><mn>2</mn></msup></mrow></math>';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<math><mrow><msup><mi>a</mi><mn>2</mn></msup></mrow></math>');
+    });
+
+    it('TINY-10809: Should retain math elements and keep scripts if sanitize is set to false', () => {
+      const schema = Schema();
+      schema.addValidElements('math[*]');
+      const input = '<math><script>alert(1)</script><mrow><msup><mi>a</mi><mn>2</mn></msup></mrow></math>';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p', sanitize: false }, schema).parse(input));
+      assert.equal(serializedHtml, '<math><script>alert(1)</script><mrow><msup><mi>a</mi><mn>2</mn></msup></mrow></math>');
+    });
+
+    it('TINY-10809: Trim whitespace before or after but not inside math elements at root level', () => {
+      const schema = Schema();
+      schema.addValidElements('math[*]');
+      const input = '  <math> <mrow> <msup><mi>a</mi><mn>2</mn> </msup> </mrow> </math> ';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<math> <mrow> <msup><mi>a</mi><mn>2</mn> </msup> </mrow> </math>');
+    });
+
+    it('TINY-10809: Trim whitespace before or after but not between or inside math elements when inside a block element', () => {
+      const schema = Schema();
+      schema.addValidElements('math[*]');
+      const input = '<div>  <math> <mrow> </mrow> </math>  <math> <mtro> </mrow> </math>  </div>';
+      const serializedHtml = HtmlSerializer({}, schema).serialize(DomParser({ forced_root_block: 'p' }, schema).parse(input));
+      assert.equal(serializedHtml, '<div><math> <mrow> </mrow> </math> <math> </math></div>');
+    });
+  });
+
 });
